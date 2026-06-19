@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "product": "OPTIONS",
+  "disclosures": [
+    {
+      "id": "options_risk",
+      "title": "Options Risk Warning",
+      "content": "Options are complex derivative instruments. You can lose the entire premium paid for an option. Writing (selling) options can expose you to unlimited losses.",
+      "must_acknowledge": true
+    }
+  ]
+}

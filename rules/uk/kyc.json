@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "region": "UK",
+  "required_fields": ["full_name", "date_of_birth", "national_insurance_number", "address", "nationality"],
+  "sanctions_lists": ["OFAC", "UN", "UK_HMT"],
+  "pep_check_required": true,
+  "vulnerability_indicators": [
+    "recent_bereavement", "mental_health_condition", "financial_difficulty",
+    "low_financial_literacy", "age_over_80"
+  ],
+  "document_requirements": {
+    "identity": ["passport", "driving_licence", "national_id"],
+    "address": ["utility_bill", "bank_statement", "council_tax"]
+  },
+  "mock_pass_criteria": {
+    "name_not_in": ["SANCTIONED PERSON", "TEST BLOCKED"],
+    "age_minimum": 18
+  }
+}

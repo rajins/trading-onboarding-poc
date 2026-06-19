@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "product": "ISA",
+  "disclosures": [
+    {
+      "id": "isa_allowance",
+      "title": "ISA Annual Allowance",
+      "content": "You can invest up to £20,000 per tax year across all your ISAs. This allowance cannot be carried forward.",
+      "must_acknowledge": true
+    },
+    {
+      "id": "isa_risk",
+      "title": "Investment Risk",
+      "content": "The value of investments can go down as well as up. You may get back less than you invest. Past performance is not a reliable indicator of future results.",
+      "must_acknowledge": true
+    },
+    {
+      "id": "consumer_duty_isa",
+      "title": "Your Rights Under FCA Consumer Duty",
+      "content": "We are required to act in your best interests and ensure you receive good outcomes. If you are in financial difficulty or vulnerable circumstances, please contact us so we can support you appropriately.",
+      "must_acknowledge": false
+    }
+  ]
+}

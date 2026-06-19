@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "product": "CFD",
+  "fca_rule_reference": "COBS 4.5A",
+  "disclosures": [
+    {
+      "id": "cfd_loss_warning",
+      "title": "Risk Warning — Mandatory FCA Disclosure",
+      "content": "CFDs are complex instruments and come with a high risk of losing money rapidly due to leverage. 74% of retail investor accounts lose money when trading CFDs. You should consider whether you understand how CFDs work and whether you can afford to take the high risk of losing your money.",
+      "must_acknowledge": true,
+      "fca_mandated": true
+    },
+    {
+      "id": "cfd_leverage",
+      "title": "Leverage Limits",
+      "content": "Under FCA rules, leverage for retail clients is capped at 1:30 for major currency pairs and 1:2 for cryptocurrency. Your maximum loss on any position is limited to your account balance.",
+      "must_acknowledge": true
+    },
+    {
+      "id": "cfd_negative_balance",
+      "title": "Negative Balance Protection",
+      "content": "You are protected from losing more than the funds in your trading account. We provide negative balance protection on all retail CFD accounts.",
+      "must_acknowledge": false
+    }
+  ]
+}

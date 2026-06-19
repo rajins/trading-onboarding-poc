@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "product": "CFD",
+  "region": "UK",
+  "fca_rule_reference": "COBS 10.2",
+  "retest_waiting_period_days": 30,
+  "questions": [
+    {
+      "id": "q1",
+      "text": "How many years of experience do you have trading leveraged products such as CFDs, spread bets, or futures?",
+      "options": [
+        { "value": "none", "label": "No experience", "score": 0 },
+        { "value": "less_than_1", "label": "Less than 1 year", "score": 1 },
+        { "value": "1_to_3", "label": "1–3 years", "score": 2 },
+        { "value": "more_than_3", "label": "More than 3 years", "score": 3 }
+      ]
+    },
+    {
+      "id": "q2",
+      "text": "How often did you trade leveraged products in the past 12 months?",
+      "options": [
+        { "value": "never", "label": "Never", "score": 0 },
+        { "value": "occasionally", "label": "Occasionally (less than 10 trades)", "score": 1 },
+        { "value": "regularly", "label": "Regularly (10–40 trades)", "score": 2 },
+        { "value": "frequently", "label": "Frequently (more than 40 trades)", "score": 3 }
+      ]
+    },
+    {
+      "id": "q3",
+      "text": "What is your highest level of financial education or qualification?",
+      "options": [
+        { "value": "none", "label": "No formal financial education", "score": 0 },
+        { "value": "self_taught", "label": "Self-taught / online courses", "score": 1 },
+        { "value": "degree", "label": "Finance/Economics degree", "score": 2 },
+        { "value": "professional", "label": "Professional qualification (CFA, ACCA, etc.)", "score": 3 }
+      ]
+    },
+    {
+      "id": "q4",
+      "text": "If you open a CFD position worth £10,000 at 10:1 leverage, what is your maximum possible loss?",
+      "options": [
+        { "value": "1000", "label": "£1,000 (my initial margin)", "score": 0 },
+        { "value": "10000", "label": "£10,000 (the full position value)", "score": 3 },
+        { "value": "unlimited", "label": "More than £10,000 in extreme cases", "score": 3 },
+        { "value": "not_sure", "label": "I'm not sure", "score": 0 }
+      ]
+    }
+  ],
+  "scoring": {
+    "pass_threshold": 6,
+    "maximum_score": 12
+  },
+  "mandatory_disclosure_on_fail": "Under FCA rules, you have not demonstrated sufficient knowledge or experience to trade CFDs. You may retake this assessment after 30 days."
+}

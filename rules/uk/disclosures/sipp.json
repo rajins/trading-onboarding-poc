@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "product": "SIPP",
+  "disclosures": [
+    {
+      "id": "sipp_access_age",
+      "title": "Pension Access Age",
+      "content": "You cannot normally access your pension until age 57. Taking your pension earlier may incur tax charges.",
+      "must_acknowledge": true
+    },
+    {
+      "id": "sipp_annual_allowance",
+      "title": "Annual Allowance",
+      "content": "The maximum you can contribute to pensions each tax year while receiving tax relief is £60,000 (or 100% of your earnings, whichever is lower).",
+      "must_acknowledge": true
+    }
+  ]
+}

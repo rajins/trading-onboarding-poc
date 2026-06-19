@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "product": "SIPP",
+  "region": "UK",
+  "fca_rule_reference": "COBS 19",
+  "appropriateness_test_required": false,
+  "questions": [
+    {
+      "id": "q1",
+      "text": "Do you understand that you cannot normally access pension funds until age 57 (rising to 57 in 2028)?",
+      "options": [
+        { "value": "yes", "label": "Yes, I understand", "score": 1 },
+        { "value": "no", "label": "No, I was not aware", "score": 0 }
+      ]
+    },
+    {
+      "id": "q2",
+      "text": "Are you transferring an existing pension? If so, have you received regulated financial advice?",
+      "options": [
+        { "value": "not_transferring", "label": "No, this is a new pension", "score": 1 },
+        { "value": "yes_advice", "label": "Yes, transferring and have received advice", "score": 1 },
+        { "value": "yes_no_advice", "label": "Yes, transferring but no advice yet", "score": 0 }
+      ]
+    }
+  ],
+  "scoring": {
+    "pass_threshold": 2,
+    "maximum_score": 2
+  }
+}

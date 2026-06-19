@@ -1,0 +1,32 @@
+{
+  "version": "1.0.0",
+  "product": "OPTIONS",
+  "region": "UK",
+  "fca_rule_reference": "COBS 10.2",
+  "retest_waiting_period_days": 30,
+  "questions": [
+    {
+      "id": "q1",
+      "text": "What is an options contract?",
+      "options": [
+        { "value": "right_not_obligation", "label": "The right but not obligation to buy/sell at a set price", "score": 3 },
+        { "value": "obligation", "label": "An obligation to buy or sell at a set price", "score": 0 },
+        { "value": "not_sure", "label": "I'm not sure", "score": 0 }
+      ]
+    },
+    {
+      "id": "q2",
+      "text": "How many options trades have you made in the past 2 years?",
+      "options": [
+        { "value": "none", "label": "None", "score": 0 },
+        { "value": "less_than_10", "label": "Less than 10", "score": 1 },
+        { "value": "10_to_40", "label": "10–40", "score": 2 },
+        { "value": "more_than_40", "label": "More than 40", "score": 3 }
+      ]
+    }
+  ],
+  "scoring": {
+    "pass_threshold": 4,
+    "maximum_score": 6
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "product": "GIA",
+  "disclosures": [
+    {
+      "id": "gia_tax",
+      "title": "Tax Treatment",
+      "content": "A General Investment Account is subject to Capital Gains Tax and Income Tax on dividends. You should consult a tax advisor about your personal circumstances.",
+      "must_acknowledge": true
+    },
+    {
+      "id": "gia_risk",
+      "title": "Investment Risk",
+      "content": "The value of investments can go down as well as up. You may get back less than you invest.",
+      "must_acknowledge": true
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "product": "ISA",
+  "region": "UK",
+  "appropriateness_test_required": false,
+  "annual_allowance_gbp": 20000,
+  "note": "No appropriateness test required for ISA under FCA rules. KYC and disclosure only."
+}

@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "region": "UK",
+  "products": {
+    "ISA": {
+      "label": "Stocks & Shares ISA",
+      "eligible_customer_types": ["RETAIL"],
+      "minimum_age": 18,
+      "required_journey_steps": ["KYC", "DISCLOSURE_ISA", "ACCOUNT_SETUP"],
+      "suitability_required": false,
+      "appropriateness_test_required": false
+    },
+    "GIA": {
+      "label": "General Investment Account",
+      "eligible_customer_types": ["RETAIL"],
+      "minimum_age": 18,
+      "required_journey_steps": ["KYC", "DISCLOSURE_GIA", "ACCOUNT_SETUP"],
+      "suitability_required": false,
+      "appropriateness_test_required": false
+    },
+    "CFD": {
+      "label": "Contracts for Difference",
+      "eligible_customer_types": ["RETAIL"],
+      "minimum_age": 18,
+      "required_journey_steps": [
+        "KYC", "SUITABILITY_CFD", "DISCLOSURE_CFD", "RISK_WARNING_CFD", "ACCOUNT_SETUP"
+      ],
+      "suitability_required": true,
+      "appropriateness_test_required": true,
+      "fca_leverage_limit": "1:30",
+      "loss_warning_threshold": 0.70
+    },
+    "SIPP": {
+      "label": "Self-Invested Personal Pension",
+      "eligible_customer_types": ["RETAIL"],
+      "minimum_age": 18,
+      "maximum_age": 75,
+      "required_journey_steps": [
+        "KYC", "SUITABILITY_SIPP", "DISCLOSURE_SIPP", "PENSION_DECLARATION", "ACCOUNT_SETUP"
+      ],
+      "suitability_required": true,
+      "appropriateness_test_required": false
+    },
+    "OPTIONS": {
+      "label": "Options & Derivatives",
+      "eligible_customer_types": ["RETAIL"],
+      "minimum_age": 18,
+      "required_journey_steps": [
+        "KYC", "SUITABILITY_OPTIONS", "DISCLOSURE_OPTIONS", "RISK_WARNING_OPTIONS", "ACCOUNT_SETUP"
+      ],
+      "suitability_required": true,
+      "appropriateness_test_required": true
+    }
+  }
+}
