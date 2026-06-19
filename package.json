@@ -1,0 +1,13 @@
+{
+  "name": "trading-onboarding-poc",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "mcp-servers/*"
+  ],
+  "scripts": {
+    "dev": "docker-compose up",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces --if-present"
+  }
+}

@@ -1,0 +1,56 @@
+version: '3.8'
+services:
+  orchestrator:
+    build: ./apps/orchestrator
+    ports:
+      - "3001:3001"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AUDIT_DB_PATH=/data/audit.db
+    volumes:
+      - audit-data:/data
+      - ./rules:/app/rules
+      - ./mcp-servers:/app/mcp-servers
+    depends_on:
+      - audit-server
+      - product-eligibility-server
+      - kyc-server
+      - suitability-server
+      - disclosure-server
+
+  audit-server:
+    build: ./mcp-servers/audit-server
+    volumes:
+      - audit-data:/data
+    environment:
+      - AUDIT_DB_PATH=/data/audit.db
+
+  product-eligibility-server:
+    build: ./mcp-servers/product-eligibility-server
+    volumes:
+      - ./rules:/app/rules
+
+  kyc-server:
+    build: ./mcp-servers/kyc-server
+    volumes:
+      - ./rules:/app/rules
+
+  suitability-server:
+    build: ./mcp-servers/suitability-server
+    volumes:
+      - ./rules:/app/rules
+
+  disclosure-server:
+    build: ./mcp-servers/disclosure-server
+    volumes:
+      - ./rules:/app/rules
+
+  frontend:
+    build: ./apps/frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:3001
+
+volumes:
+  audit-data:
