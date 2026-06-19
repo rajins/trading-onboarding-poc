@@ -3,7 +3,7 @@ services:
   orchestrator:
     build: ./apps/orchestrator
     ports:
-      - "3001:3001"
+      - "${ORCHESTRATOR_PORT:-3001}:3001"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - AUDIT_DB_PATH=/data/audit.db
@@ -48,9 +48,11 @@ services:
   frontend:
     build: ./apps/frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - ORCHESTRATOR_URL=http://orchestrator:3001
+      - ORCHESTRATOR_URL=http://orchestrator:${ORCHESTRATOR_PORT:-3001}
+    depends_on:
+      - orchestrator
 
 volumes:
   audit-data:
