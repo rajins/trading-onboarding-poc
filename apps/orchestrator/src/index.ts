@@ -1,3 +1,7 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+config({ path: resolve(process.cwd(), '../../.env') });
+
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
@@ -13,6 +17,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 app.post('/chat', async (req, res) => {
   const { session_id, message } = req.body as { session_id: string; message: string };
+  try {
   const session = getOrCreateSession(session_id);
   session.messages.push({ role: 'user', content: message });
 
@@ -57,6 +62,14 @@ app.post('/chat', async (req, res) => {
   updateSession(session_id, { messages: session.messages });
 
   res.json({ reply, session_id });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const friendly = msg.includes('credit balance')
+      ? 'Anthropic API credits exhausted. Please top up at console.anthropic.com → Plans & Billing.'
+      : `Orchestrator error: ${msg}`;
+    console.error('[chat error]', msg);
+    res.status(500).json({ error: friendly, session_id });
+  }
 });
 
 app.get('/audit/:session_id', async (req, res) => {
