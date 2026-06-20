@@ -1,8 +1,10 @@
+import type Anthropic from '@anthropic-ai/sdk';
+
 export interface Session {
   id: string;
   customer_id?: string;
   product_code?: string;
-  messages: Array<{ role: 'user' | 'assistant'; content: unknown }>;
+  messages: Anthropic.MessageParam[];
   created_at: string;
 }
 
@@ -13,11 +15,6 @@ export function getOrCreateSession(id: string): Session {
     sessions.set(id, { id, messages: [], created_at: new Date().toISOString() });
   }
   return sessions.get(id)!;
-}
-
-export function updateSession(id: string, updates: Partial<Session>): void {
-  const session = getOrCreateSession(id);
-  Object.assign(session, updates);
 }
 
 export function getAllSessions(): Session[] {

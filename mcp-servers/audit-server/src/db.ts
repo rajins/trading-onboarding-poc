@@ -5,15 +5,25 @@ import path from 'path';
 const DB_PATH = process.env.AUDIT_DB_PATH || './audit.db';
 
 let db: Database;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function persist(): void {
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    if (db) fs.writeFileSync(DB_PATH, Buffer.from(db.export()));
+    persistTimer = null;
+  }, 500);
+}
+
+process.on('exit', () => {
+  if (db) fs.writeFileSync(DB_PATH, Buffer.from(db.export()));
+});
 
 async function initDb(): Promise<Database> {
   const SQL = await initSqlJs();
-  if (fs.existsSync(DB_PATH)) {
-    const fileBuffer = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(fileBuffer);
-  } else {
-    db = new SQL.Database();
-  }
+  db = fs.existsSync(DB_PATH)
+    ? new SQL.Database(fs.readFileSync(DB_PATH))
+    : new SQL.Database();
 
   db.run(`
     CREATE TABLE IF NOT EXISTS audit_events (
@@ -36,17 +46,8 @@ async function initDb(): Promise<Database> {
   return db;
 }
 
-function persist(): void {
-  if (db) {
-    const data = db.export();
-    fs.writeFileSync(DB_PATH, Buffer.from(data));
-  }
-}
-
 export async function getDb(): Promise<Database> {
-  if (!db) {
-    await initDb();
-  }
+  if (!db) await initDb();
   return db;
 }
 
@@ -64,8 +65,7 @@ export async function writeAuditEvent(params: {
   database.run(
     `INSERT INTO audit_events
       (session_id, customer_id, event_type, tool_name, input_snapshot, output_snapshot, decision, rule_version)
-    VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?)`,
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       params.session_id,
       params.customer_id ?? null,
@@ -90,7 +90,5 @@ export async function getAuditTrail(session_id: string): Promise<unknown[]> {
   );
   if (!result.length) return [];
   const { columns, values } = result[0];
-  return values.map(row =>
-    Object.fromEntries(columns.map((col, i) => [col, row[i]]))
-  );
+  return values.map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
 }

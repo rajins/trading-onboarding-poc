@@ -29,7 +29,8 @@ export default function ChatInterface({ sessionId }: { sessionId: string }) {
         body: JSON.stringify({ session_id: sessionId, message: userMsg }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      const reply = res.ok ? (data.reply ?? '') : (data.error ?? 'Something went wrong. Please try again.');
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } finally {
       setLoading(false);
     }

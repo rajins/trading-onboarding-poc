@@ -3,9 +3,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 const RULES_BASE = process.env.RULES_PATH || path.resolve(process.cwd(), '../../rules');
-function getKycRules() {
-  return JSON.parse(readFileSync(path.join(RULES_BASE, 'uk', 'kyc.json'), 'utf-8'));
-}
+const KYC_RULES = JSON.parse(readFileSync(path.join(RULES_BASE, 'uk', 'kyc.json'), 'utf-8'));
 
 export const kycTools = {
   verify_identity: {
@@ -19,11 +17,10 @@ export const kycTools = {
       address: z.object({ line1: z.string(), city: z.string(), postcode: z.string(), country: z.string().default('GB') }),
     }),
     handler: (input: { full_name: string; date_of_birth: string }) => {
-      const rules = getKycRules();
       const age = Math.floor((Date.now() - new Date(input.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
-      const isBlocked = rules.mock_pass_criteria.name_not_in.some((b: string) => input.full_name.toUpperCase().includes(b));
+      const isBlocked = KYC_RULES.mock_pass_criteria.name_not_in.some((b: string) => input.full_name.toUpperCase().includes(b));
       if (isBlocked) return { decision: 'FAIL', reason: 'Identity check failed', rule_version: '1.0.0' };
-      if (age < rules.mock_pass_criteria.age_minimum) return { decision: 'FAIL', reason: `Must be at least ${rules.mock_pass_criteria.age_minimum}`, rule_version: '1.0.0' };
+      if (age < KYC_RULES.mock_pass_criteria.age_minimum) return { decision: 'FAIL', reason: `Must be at least ${KYC_RULES.mock_pass_criteria.age_minimum}`, rule_version: '1.0.0' };
       return { decision: 'PASS', verified_name: input.full_name, verified_dob: input.date_of_birth, rule_version: '1.0.0' };
     },
   },

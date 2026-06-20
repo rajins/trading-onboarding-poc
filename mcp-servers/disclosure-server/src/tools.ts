@@ -3,8 +3,14 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 const RULES_BASE = process.env.RULES_PATH || path.resolve(process.cwd(), '../../rules');
+const disclosureCache = new Map<string, ReturnType<typeof JSON.parse>>();
+
 function getDisclosures(product: string) {
-  return JSON.parse(readFileSync(path.join(RULES_BASE, 'uk', 'disclosures', `${product.toLowerCase()}.json`), 'utf-8'));
+  const key = product.toLowerCase();
+  if (!disclosureCache.has(key)) {
+    disclosureCache.set(key, JSON.parse(readFileSync(path.join(RULES_BASE, 'uk', 'disclosures', `${key}.json`), 'utf-8')));
+  }
+  return disclosureCache.get(key);
 }
 
 export const disclosureTools = {

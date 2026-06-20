@@ -3,8 +3,14 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 const RULES_BASE = process.env.RULES_PATH || path.resolve(process.cwd(), '../../rules');
+const rulesCache = new Map<string, ReturnType<typeof JSON.parse>>();
+
 function getSuitabilityRules(product: string) {
-  return JSON.parse(readFileSync(path.join(RULES_BASE, 'uk', 'suitability', `${product.toLowerCase()}.json`), 'utf-8'));
+  const key = product.toLowerCase();
+  if (!rulesCache.has(key)) {
+    rulesCache.set(key, JSON.parse(readFileSync(path.join(RULES_BASE, 'uk', 'suitability', `${key}.json`), 'utf-8')));
+  }
+  return rulesCache.get(key);
 }
 
 export const suitabilityTools = {
