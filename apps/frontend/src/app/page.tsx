@@ -1,10 +1,11 @@
 'use client';
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import ChatInterface from '@/components/ChatInterface';
 import AuditPanel from '@/components/AuditPanel';
 
 export default function Home() {
-  const sessionId = useMemo(() => `session-${Date.now()}`, []);
+  const [sessionId, setSessionId] = useState('');
+  useEffect(() => { setSessionId(`session-${Date.now()}`); }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
