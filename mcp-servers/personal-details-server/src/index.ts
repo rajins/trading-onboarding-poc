@@ -1,12 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { personalDetailsTools } from './tools.js';
+import { initStore } from './store.js';
+
+await initStore();
 
 const server = new McpServer({ name: 'personal-details-server', version: '1.0.0' });
 
 for (const [name, tool] of Object.entries(personalDetailsTools)) {
-  server.tool(name, tool.description, tool.inputSchema.shape, (input: unknown) => {
-    const result = tool.handler(input as never);
+  server.tool(name, tool.description, tool.inputSchema.shape, async (input: unknown) => {
+    const result = await tool.handler(input as never);
     return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
   });
 }

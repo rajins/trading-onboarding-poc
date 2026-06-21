@@ -1,16 +1,19 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
 import { auditTools } from './tools.js';
+import { initDb } from './db.js';
 
-const server = new McpServer({
-  name: 'audit-server',
-  version: '1.0.0',
-});
+await initDb();
 
-for (const [name, tool] of Object.entries(auditTools)) {
+const server = new McpServer({ name: 'audit-server', version: '1.0.0' });
+
+type AuditTool = { description: string; inputSchema: z.ZodObject<z.ZodRawShape>; handler: (input: never) => Promise<unknown> };
+
+for (const [name, tool] of Object.entries(auditTools) as [string, AuditTool][]) {
   server.tool(name, tool.description, tool.inputSchema.shape, async (input: unknown) => {
     const result = await tool.handler(input as never);
-    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
   });
 }
 

@@ -31,11 +31,10 @@ export const personalDetailsTools = {
       customer_id: z.string(),
       intended_products: z.array(z.string()).describe('Products the customer intends to open, e.g. ["CFD"]'),
     }),
-    handler: (input: { customer_id: string; intended_products: string[] }) => {
+    handler: async (input: { customer_id: string; intended_products: string[] }) => {
       const { required, conditional } = getRequiredFields(input.intended_products);
-      const already_saved = customerExists(input.customer_id)
-        ? Object.keys(loadFields(input.customer_id))
-        : [];
+      const exists = await customerExists(input.customer_id);
+      const already_saved = exists ? Object.keys(await loadFields(input.customer_id)) : [];
       return {
         customer_id: input.customer_id,
         required_fields: required,
@@ -52,12 +51,12 @@ export const personalDetailsTools = {
       customer_id: z.string(),
       fields: FieldsSchema,
     }),
-    handler: (input: { customer_id: string; fields: Record<string, unknown> }) => {
+    handler: async (input: { customer_id: string; fields: Record<string, unknown> }) => {
       const nonNull: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(input.fields)) {
         if (v !== undefined && v !== null) nonNull[k] = v;
       }
-      saveFields(input.customer_id, nonNull);
+      await saveFields(input.customer_id, nonNull);
 
       const flags: string[] = [];
       const pep = input.fields.pep_declaration as { is_pep?: boolean } | undefined;
@@ -79,8 +78,8 @@ export const personalDetailsTools = {
       customer_id: z.string(),
       intended_products: z.array(z.string()),
     }),
-    handler: (input: { customer_id: string; intended_products: string[] }) => {
-      const fields = loadFields(input.customer_id);
+    handler: async (input: { customer_id: string; intended_products: string[] }) => {
+      const fields = await loadFields(input.customer_id);
       const errors = validateFields(fields, input.intended_products);
       return {
         customer_id: input.customer_id,
@@ -96,8 +95,8 @@ export const personalDetailsTools = {
     inputSchema: z.object({
       customer_id: z.string(),
     }),
-    handler: (input: { customer_id: string }) => {
-      const fields = loadFields(input.customer_id);
+    handler: async (input: { customer_id: string }) => {
+      const fields = await loadFields(input.customer_id);
       if (Object.keys(fields).length === 0) {
         return { customer_id: input.customer_id, found: false, profile: null };
       }

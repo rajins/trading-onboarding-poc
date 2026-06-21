@@ -1,9 +1,7 @@
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
+import pg from 'pg';
 
-const STORE_PATH = process.env.PERSONAL_DETAILS_PATH
-  || path.resolve(process.cwd(), '../../data/personal-details');
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
 function getKey(): Buffer {
   const raw = process.env.PERSONAL_DETAILS_ENCRYPTION_KEY;
@@ -21,14 +19,6 @@ interface EncryptedField {
   iv: string;
   ciphertext: string;
   auth_tag: string;
-}
-
-interface PersonalDetailsFile {
-  customer_id: string;
-  schema_version: string;
-  created_at: string;
-  updated_at: string;
-  fields: Record<string, EncryptedField>;
 }
 
 export function encryptField(value: unknown): EncryptedField {
@@ -54,39 +44,50 @@ export function decryptField(encrypted: EncryptedField): unknown {
   return JSON.parse(decrypted.toString('utf8'));
 }
 
-export function saveFields(customerId: string, fields: Record<string, unknown>): void {
-  fs.mkdirSync(STORE_PATH, { recursive: true });
-  const filePath = path.join(STORE_PATH, `${customerId}.json`);
-  let profile: PersonalDetailsFile;
-  if (fs.existsSync(filePath)) {
-    profile = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  } else {
-    profile = {
-      customer_id: customerId,
-      schema_version: '1.0.0',
-      created_at: new Date().toISOString(),
-      updated_at: '',
-      fields: {},
-    };
-  }
-  for (const [key, value] of Object.entries(fields)) {
-    profile.fields[key] = encryptField(value);
-  }
-  profile.updated_at = new Date().toISOString();
-  fs.writeFileSync(filePath, JSON.stringify(profile, null, 2));
+export async function initStore(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_personal_details (
+      customer_id    TEXT PRIMARY KEY,
+      schema_version TEXT NOT NULL DEFAULT '1.0.0',
+      fields         JSONB NOT NULL DEFAULT '{}',
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 }
 
-export function loadFields(customerId: string): Record<string, unknown> {
-  const filePath = path.join(STORE_PATH, `${customerId}.json`);
-  if (!fs.existsSync(filePath)) return {};
-  const profile: PersonalDetailsFile = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+export async function saveFields(customerId: string, fields: Record<string, unknown>): Promise<void> {
+  const encryptedFields: Record<string, EncryptedField> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    encryptedFields[key] = encryptField(value);
+  }
+  await pool.query(
+    `INSERT INTO customer_personal_details (customer_id, fields)
+     VALUES ($1, $2::jsonb)
+     ON CONFLICT (customer_id) DO UPDATE
+     SET fields     = customer_personal_details.fields || $2::jsonb,
+         updated_at = NOW()`,
+    [customerId, JSON.stringify(encryptedFields)]
+  );
+}
+
+export async function loadFields(customerId: string): Promise<Record<string, unknown>> {
+  const { rows } = await pool.query<{ fields: Record<string, EncryptedField> }>(
+    'SELECT fields FROM customer_personal_details WHERE customer_id = $1',
+    [customerId]
+  );
+  if (!rows.length) return {};
   const result: Record<string, unknown> = {};
-  for (const [key, encrypted] of Object.entries(profile.fields)) {
+  for (const [key, encrypted] of Object.entries(rows[0].fields)) {
     result[key] = decryptField(encrypted);
   }
   return result;
 }
 
-export function customerExists(customerId: string): boolean {
-  return fs.existsSync(path.join(STORE_PATH, `${customerId}.json`));
+export async function customerExists(customerId: string): Promise<boolean> {
+  const { rows } = await pool.query(
+    'SELECT 1 FROM customer_personal_details WHERE customer_id = $1',
+    [customerId]
+  );
+  return rows.length > 0;
 }

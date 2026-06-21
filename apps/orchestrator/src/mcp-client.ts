@@ -5,7 +5,6 @@ import path from 'path';
 
 const MCP_SERVERS_BASE = process.env.MCP_SERVERS_PATH || path.resolve(process.cwd(), '../../mcp-servers');
 const RULES_PATH = process.env.RULES_PATH || path.resolve(process.cwd(), '../../rules');
-const AUDIT_DB_PATH = process.env.AUDIT_DB_PATH || './audit.db';
 
 const toolToClient = new Map<string, Client>();
 const allTools: Anthropic.Tool[] = [];
@@ -14,7 +13,7 @@ async function connectServer(name: string, serverPath: string) {
   const transport = new StdioClientTransport({
     command: 'npx',
     args: ['tsx', path.join(serverPath, 'src', 'index.ts')],
-    env: { ...process.env, RULES_PATH, AUDIT_DB_PATH },
+    env: { ...process.env, RULES_PATH },
   });
   const client = new Client({ name: 'orchestrator', version: '1.0.0' });
   await client.connect(transport);
