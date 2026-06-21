@@ -6,7 +6,7 @@
       "label": "Stocks & Shares ISA",
       "eligible_customer_types": ["RETAIL"],
       "minimum_age": 18,
-      "required_journey_steps": ["KYC", "DISCLOSURE_ISA", "ACCOUNT_SETUP"],
+      "required_journey_steps": ["PERSONAL_DETAILS", "KYC", "DISCLOSURE_ISA", "ACCOUNT_SETUP"],
       "suitability_required": false,
       "appropriateness_test_required": false
     },
@@ -14,7 +14,7 @@
       "label": "General Investment Account",
       "eligible_customer_types": ["RETAIL"],
       "minimum_age": 18,
-      "required_journey_steps": ["KYC", "DISCLOSURE_GIA", "ACCOUNT_SETUP"],
+      "required_journey_steps": ["PERSONAL_DETAILS", "KYC", "DISCLOSURE_GIA", "ACCOUNT_SETUP"],
       "suitability_required": false,
       "appropriateness_test_required": false
     },
@@ -23,7 +23,7 @@
       "eligible_customer_types": ["RETAIL"],
       "minimum_age": 18,
       "required_journey_steps": [
-        "KYC", "SUITABILITY_CFD", "DISCLOSURE_CFD", "RISK_WARNING_CFD", "ACCOUNT_SETUP"
+        "PERSONAL_DETAILS", "KYC", "SUITABILITY_CFD", "DISCLOSURE_CFD", "RISK_WARNING_CFD", "ACCOUNT_SETUP"
       ],
       "suitability_required": true,
       "appropriateness_test_required": true,
@@ -36,7 +36,7 @@
       "minimum_age": 18,
       "maximum_age": 75,
       "required_journey_steps": [
-        "KYC", "SUITABILITY_SIPP", "DISCLOSURE_SIPP", "PENSION_DECLARATION", "ACCOUNT_SETUP"
+        "PERSONAL_DETAILS", "KYC", "SUITABILITY_SIPP", "DISCLOSURE_SIPP", "PENSION_DECLARATION", "ACCOUNT_SETUP"
       ],
       "suitability_required": true,
       "appropriateness_test_required": false
@@ -46,7 +46,7 @@
       "eligible_customer_types": ["RETAIL"],
       "minimum_age": 18,
       "required_journey_steps": [
-        "KYC", "SUITABILITY_OPTIONS", "DISCLOSURE_OPTIONS", "RISK_WARNING_OPTIONS", "ACCOUNT_SETUP"
+        "PERSONAL_DETAILS", "KYC", "SUITABILITY_OPTIONS", "DISCLOSURE_OPTIONS", "RISK_WARNING_OPTIONS", "ACCOUNT_SETUP"
       ],
       "suitability_required": true,
       "appropriateness_test_required": true
