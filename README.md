@@ -2,7 +2,7 @@
 
 An AI-powered onboarding platform for UK retail trading accounts. Claude acts as an intelligent orchestrator calling 5 specialised MCP servers — all compliance decisions are deterministic, auditable, and FCA-aware.
 
-**Stack:** Claude Sonnet 4.6 · MCP (Model Context Protocol) · Next.js 14 · Express · TypeScript · sql.js · Docker Compose
+**Stack:** Claude Sonnet 4.6 · MCP (Model Context Protocol) · Next.js 14 · Express · TypeScript · PostgreSQL · sql.js · Docker Compose
 
 ---
 
@@ -18,18 +18,24 @@ An AI-powered onboarding platform for UK retail trading accounts. Claude acts as
 │  Routes between MCP tools. Never decides.        │
 │  Parallel tool dispatch via pre-built tool→      │
 │  client Map (O(1) per call, zero fan-out)        │
-└──┬──────────┬──────────┬──────────┬─────────────┘
-   │          │          │          │
-┌──▼──┐  ┌───▼──┐  ┌────▼─┐  ┌────▼──────┐  ┌────────┐
-│ KYC │  │SUIT  │  │ELIG  │  │DISCLOSURE │  │ AUDIT  │
-│ MCP │  │MCP   │  │MCP   │  │MCP        │  │ MCP ★  │
-└──┬──┘  └───┬──┘  └────┬─┘  └────┬──────┘  └────┬───┘
-   └──────────┴──────────┴─────────┴──────────────┘
-                         │
-              ┌──────────▼──────────┐
-              │  JSON RULES ENGINE  │
-              │  rules/uk/*.json    │
-              └─────────────────────┘
+└──┬───────┬──────────┬──────────┬────────────────┘
+   │       │          │          │          │
+┌──▼──┐ ┌──▼──┐  ┌───▼──┐  ┌───▼──┐  ┌────▼──────┐  ┌────────┐
+│ PII │ │ KYC │  │SUIT  │  │ELIG  │  │DISCLOSURE │  │ AUDIT  │
+│ MCP │ │ MCP │  │MCP   │  │MCP   │  │MCP        │  │ MCP ★  │
+└─────┘ └──┬──┘  └───┬──┘  └────┬─┘  └────┬──────┘  └────┬───┘
+           └──────────┴──────────┴─────────┴──────────────┘
+                                 │
+                      ┌──────────▼──────────┐
+                      │  JSON RULES ENGINE  │
+                      │  rules/uk/*.json    │
+                      └─────────────────────┘
+
+┌───────────────────────────────────────────┐
+│  PostgreSQL  ·  sessions table (JSONB)    │
+│  Persists conversation history across     │
+│  orchestrator restarts                    │
+└───────────────────────────────────────────┘
 ```
 
 **Key principle:** Claude orchestrates but never makes compliance decisions. All PASS/FAIL outcomes come from deterministic JSON rules inside MCP servers.
@@ -41,6 +47,7 @@ An AI-powered onboarding platform for UK retail trading accounts. Claude acts as
 - **Rules cached at module init** — KYC, suitability, and disclosure servers load and cache their JSON rules files on first access per product. No disk reads in the hot path.
 - **Audit debounced** — `persist()` (sql.js → disk) is debounced 500 ms so a burst of audit inserts produces one flush rather than blocking the event loop per row. A `process.on('exit')` guard ensures nothing is lost.
 - **Typed session messages** — `Session.messages` is typed as `Anthropic.MessageParam[]` throughout; no runtime casts in the agentic loop.
+- **Persistent sessions** — conversation history stored in PostgreSQL as `JSONB`. Sessions survive orchestrator restarts; the `sessions` table is created automatically on first start via `CREATE TABLE IF NOT EXISTS`.
 
 ---
 
@@ -48,6 +55,7 @@ An AI-powered onboarding platform for UK retail trading accounts. Claude acts as
 
 | Server | Transport | Tools | Data source |
 |--------|-----------|-------|-------------|
+| `personal-details-server` | stdio | `get_required_fields`, `save_personal_details`, `validate_personal_details`, `get_personal_details` | `data/personal-details/{customer_id}.json` (AES-256-GCM encrypted) |
 | `audit-server` | stdio | `write_audit_event`, `get_audit_trail`, `snapshot_decision` | append-only SQLite (sql.js) |
 | `product-eligibility-server` | stdio | `get_eligible_products`, `get_required_journey_steps` | `rules/uk/eligibility.json` |
 | `kyc-server` | stdio | `verify_identity`, `check_sanctions`, `assess_vulnerability` | `rules/uk/kyc.json` (cached) |
@@ -60,11 +68,11 @@ An AI-powered onboarding platform for UK retail trading accounts. Claude acts as
 
 | Product | Appropriateness Test | FCA Rule | Journey Steps |
 |---------|---------------------|----------|---------------|
-| ISA (Stocks & Shares) | No | — | KYC → Disclosure → Account |
-| GIA (General Investment) | No | — | KYC → Disclosure → Account |
-| CFD (Contracts for Difference) | Yes (4 questions, score ≥ 6/12) | COBS 10.2 | KYC → Suitability → Disclosure → Risk Warning → Account |
-| SIPP (Personal Pension) | No (declaration only) | COBS 19 | KYC → Suitability → Disclosure → Pension Declaration → Account |
-| Options & Derivatives | Yes (2 questions, score ≥ 4/6) | COBS 10.2 | KYC → Suitability → Disclosure → Risk Warning → Account |
+| ISA (Stocks & Shares) | No | — | Personal Details → KYC → Disclosure → Account |
+| GIA (General Investment) | No | — | Personal Details → KYC → Disclosure → Account |
+| CFD (Contracts for Difference) | Yes (4 questions, score ≥ 6/12) | COBS 10.2 | Personal Details → KYC → Suitability → Disclosure → Risk Warning → Account |
+| SIPP (Personal Pension) | No (declaration only) | COBS 19 | Personal Details → KYC → Suitability → Disclosure → Pension Declaration → Account |
+| Options & Derivatives | Yes (2 questions, score ≥ 4/6) | COBS 10.2 | Personal Details → KYC → Suitability → Disclosure → Risk Warning → Account |
 
 ---
 
@@ -74,6 +82,7 @@ An AI-powered onboarding platform for UK retail trading accounts. Claude acts as
 
 - Node.js 20+
 - npm 9+
+- Docker (for PostgreSQL)
 - An Anthropic API key with credits ([console.anthropic.com](https://console.anthropic.com))
 
 ### 1. Clone and install
@@ -96,9 +105,20 @@ ANTHROPIC_API_KEY=sk-ant-...
 ORCHESTRATOR_PORT=3001
 FRONTEND_PORT=3000
 AUDIT_DB_PATH=./data/audit.db
+DATABASE_URL=postgresql://onboarding:onboarding@localhost:5432/onboarding
+PERSONAL_DETAILS_ENCRYPTION_KEY=<64 hex chars — generate with: openssl rand -hex 32>
+PERSONAL_DETAILS_PATH=./data/personal-details
 ```
 
-### 3. Run the orchestrator
+### 3. Start PostgreSQL
+
+```bash
+docker compose up postgres -d
+```
+
+Wait for the healthcheck to pass (a few seconds), then the `sessions` table is created automatically when the orchestrator first connects.
+
+### 4. Run the orchestrator
 
 ```bash
 cd apps/orchestrator
@@ -109,12 +129,13 @@ Wait for:
 ```
 [MCP] Connected: audit (3 tools)
 [MCP] Connected: eligibility (2 tools)
+[MCP] Connected: personal-details (4 tools)
 ...
 [MCP] All servers connected. Tools: write_audit_event, get_audit_trail, ...
 Orchestrator running on :3001
 ```
 
-### 4. Run the frontend
+### 5. Run the frontend
 
 ```bash
 # In a new terminal, from the project root
@@ -128,20 +149,25 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## Demo Scenarios
 
-### Scenario 1 — ISA (Happy Path, 3 steps)
+### Scenario 1 — ISA (Happy Path, 4 steps)
 > "I want to open an ISA"
 
-KYC → disclosure presented → account created. No appropriateness test.
+Personal Details collected → KYC → disclosure presented → account created. No appropriateness test.
 
-### Scenario 2 — CFD PASS (Full Journey, 5 steps)
+### Scenario 2 — CFD PASS (Full Journey, 6 steps)
 > "I want to open a CFD account" + answer questions with high scores
 
-KYC → 4-question appropriateness test (score ≥ 6) → FCA 74% loss warning → account created.
+Personal Details (including income band + source of wealth) → KYC → 4-question appropriateness test (score ≥ 6) → FCA 74% loss warning → account created.
 
 ### Scenario 3 — CFD FAIL (Blocked)
 > "I want to open a CFD account" + answer questions with low scores
 
-KYC → appropriateness test FAIL (score < 6) → journey stopped → 30-day retest period enforced. Claude cannot override.
+Personal Details → KYC → appropriateness test FAIL (score < 6) → journey stopped → 30-day retest period enforced. Claude cannot override.
+
+### Scenario 4 — PEP Customer
+> Declare `is_pep: true` during personal details collection
+
+Journey continues (POC does not block at onboarding layer) but `PEP_FLAGGED` is written to the audit trail and Claude informs the customer their account is flagged for enhanced due diligence.
 
 ---
 
@@ -165,9 +191,11 @@ trading-onboarding-poc/
 │           ├── index.ts        # Routes + agentic loop (parallel tool execution)
 │           ├── mcp-client.ts   # O(1) tool dispatch via Map<toolName, Client>
 │           ├── prompt.ts       # System prompt with compliance guardrails
-│           └── session.ts      # In-memory session store (Anthropic.MessageParam[])
+│           ├── session.ts      # PostgreSQL-backed session store (JSONB messages)
+│           └── db.ts           # pg connection pool + initDb() (CREATE TABLE IF NOT EXISTS)
 ├── mcp-servers/
 │   ├── tsconfig.base.json      # Shared compiler options for all MCP servers
+│   ├── personal-details-server/ # PII collection + AES-256-GCM field-level encryption
 │   ├── audit-server/           # Append-only SQLite audit log (debounced writes)
 │   ├── product-eligibility-server/
 │   ├── kyc-server/             # KYC rules loaded once at startup
@@ -175,8 +203,9 @@ trading-onboarding-poc/
 │   └── disclosure-server/      # Disclosures cached per product on first access
 ├── rules/
 │   └── uk/
-│       ├── eligibility.json    # Product eligibility per customer type/age
+│       ├── eligibility.json    # Product eligibility + journey steps (PERSONAL_DETAILS first)
 │       ├── kyc.json            # KYC requirements and mock pass criteria
+│       ├── personal-details.json  # Field definitions, enums, conditional triggers
 │       ├── suitability/        # Appropriateness test questions + scoring
 │       │   ├── cfd.json
 │       │   ├── sipp.json
@@ -189,8 +218,10 @@ trading-onboarding-poc/
 │           ├── options.json
 │           ├── isa.json
 │           └── gia.json
+├── data/
+│   └── personal-details/       # AES-256-GCM encrypted customer PII (one JSON per customer)
 ├── .env.example
-├── docker-compose.yml
+├── docker-compose.yml          # postgres:16-alpine + all services
 └── package.json                # npm workspaces root (apps/*, mcp-servers/*)
 ```
 
@@ -208,6 +239,22 @@ trading-onboarding-poc/
 - Generate disclosure or risk warning text
 - Reorder journey steps returned by `get_required_journey_steps`
 - Override a FAIL from `run_appropriateness_test`
+
+### Session persistence
+
+Conversation history is stored in PostgreSQL (`sessions` table, `messages JSONB`). Sessions survive orchestrator restarts — a customer can close the browser and resume exactly where they left off. The table is created automatically on first start; no migration script needed.
+
+```sql
+-- sessions table schema
+CREATE TABLE sessions (
+  id           TEXT PRIMARY KEY,
+  customer_id  TEXT,
+  product_code TEXT,
+  messages     JSONB NOT NULL DEFAULT '[]',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
 
 ### Audit trail
 
@@ -255,10 +302,19 @@ curl http://localhost:3001/audit/{session_id}
 
 ```bash
 # Copy and populate .env first
-docker-compose up
+cp .env.example .env
+# Set ANTHROPIC_API_KEY and PERSONAL_DETAILS_ENCRYPTION_KEY in .env
+
+docker compose up
 ```
 
-Services start in dependency order. Frontend available at [http://localhost:3000](http://localhost:3000).
+Services start in dependency order. Postgres healthcheck must pass before the orchestrator starts. Frontend available at [http://localhost:3000](http://localhost:3000).
+
+**Postgres only (for local dev):**
+```bash
+docker compose up postgres -d
+```
+Then run the orchestrator and frontend directly with `npx tsx`.
 
 ---
 
@@ -269,4 +325,3 @@ Services start in dependency order. Frontend available at [http://localhost:3000
 - [ ] Options full journey
 - [ ] Multi-region support (SG, IN)
 - [ ] Re-test period enforcement UI
-- [ ] Session persistence (replace in-memory Map with SQLite)
