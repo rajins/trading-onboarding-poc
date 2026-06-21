@@ -1,0 +1,91 @@
+{
+  "version": "1.0.0",
+  "region": "UK",
+  "fields": {
+    "full_name": {
+      "type": "string",
+      "always_required": true
+    },
+    "date_of_birth": {
+      "type": "date",
+      "always_required": true
+    },
+    "nationality": {
+      "type": "iso3166",
+      "always_required": true
+    },
+    "national_insurance_number": {
+      "type": "ni",
+      "always_required": true
+    },
+    "address": {
+      "type": "address",
+      "always_required": true
+    },
+    "employment_status": {
+      "type": "enum",
+      "always_required": true,
+      "values": [
+        "employed",
+        "self_employed",
+        "retired",
+        "student",
+        "unemployed",
+        "director"
+      ]
+    },
+    "annual_income_band": {
+      "type": "enum",
+      "always_required": false,
+      "required_if_products": [
+        "CFD",
+        "SIPP",
+        "OPTIONS"
+      ],
+      "values": [
+        "under_25k",
+        "25k_50k",
+        "50k_100k",
+        "100k_250k",
+        "over_250k"
+      ]
+    },
+    "source_of_wealth": {
+      "type": "enum",
+      "always_required": false,
+      "required_if_products": [
+        "CFD",
+        "SIPP",
+        "OPTIONS"
+      ],
+      "values": [
+        "employment",
+        "self_employment",
+        "inheritance",
+        "investment_returns",
+        "business_sale",
+        "other"
+      ]
+    },
+    "tax_residency": {
+      "type": "iso3166",
+      "always_required": false,
+      "required_if_products": [
+        "SIPP",
+        "GIA"
+      ]
+    },
+    "pep_declaration": {
+      "type": "pep",
+      "always_required": true
+    },
+    "us_person_fatca": {
+      "type": "fatca",
+      "always_required": true
+    },
+    "marketing_preferences": {
+      "type": "marketing",
+      "always_required": true
+    }
+  }
+}
