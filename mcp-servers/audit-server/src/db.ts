@@ -2,7 +2,11 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: process.env.AUDIT_DATABASE_URL });
+
+pool.on('error', (err) => {
+  console.error('[audit-server] pg pool error:', err.message);
+});
 
 export async function initDb(): Promise<void> {
   await pool.query(`
