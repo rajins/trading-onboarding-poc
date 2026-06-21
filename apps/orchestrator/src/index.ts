@@ -7,7 +7,8 @@ import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
 import { SYSTEM_PROMPT } from './prompt.js';
 import { initMcpServers, getAnthropicTools, callTool } from './mcp-client.js';
-import { getOrCreateSession, getAllSessions } from './session.js';
+import { getOrCreateSession, saveSession, getAllSessions } from './session.js';
+import { initDb } from './db.js';
 
 const app = express();
 app.use(cors());
@@ -18,7 +19,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 app.post('/chat', async (req, res) => {
   const { session_id, message } = req.body as { session_id: string; message: string };
   try {
-    const session = getOrCreateSession(session_id);
+    const session = await getOrCreateSession(session_id);
     session.messages.push({ role: 'user', content: message });
 
     const tools = getAnthropicTools();
@@ -46,6 +47,7 @@ app.post('/chat', async (req, res) => {
 
       session.messages.push({ role: 'assistant', content: response.content });
       session.messages.push({ role: 'user', content: toolResults });
+      await saveSession(session);
 
       response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
@@ -59,6 +61,7 @@ app.post('/chat', async (req, res) => {
     const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
     const reply = textBlock?.text ?? '';
     session.messages.push({ role: 'assistant', content: reply });
+    await saveSession(session);
 
     res.json({ reply, session_id });
   } catch (err: unknown) {
@@ -80,9 +83,9 @@ app.get('/audit/:session_id', async (req, res) => {
   }
 });
 
-app.get('/sessions', (_req, res) => {
+app.get('/sessions', async (_req, res) => {
   try {
-    const sessions = getAllSessions().map(s => ({
+    const sessions = (await getAllSessions()).map(s => ({
       id: s.id,
       product_code: s.product_code,
       created_at: s.created_at,
@@ -96,5 +99,6 @@ app.get('/sessions', (_req, res) => {
 
 const PORT = process.env.ORCHESTRATOR_PORT || 3001;
 
+await initDb();
 await initMcpServers();
 app.listen(PORT, () => console.log(`Orchestrator running on :${PORT}`));

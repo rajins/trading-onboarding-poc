@@ -1,5 +1,21 @@
 version: '3.8'
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: onboarding
+      POSTGRES_USER: onboarding
+      POSTGRES_PASSWORD: onboarding
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onboarding"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   orchestrator:
     build: ./apps/orchestrator
     ports:
@@ -7,16 +23,24 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - AUDIT_DB_PATH=/data/audit.db
+      - DATABASE_URL=postgresql://onboarding:onboarding@postgres:5432/onboarding
     volumes:
       - audit-data:/data
       - ./rules:/app/rules
       - ./mcp-servers:/app/mcp-servers
     depends_on:
-      - audit-server
-      - product-eligibility-server
-      - kyc-server
-      - suitability-server
-      - disclosure-server
+      postgres:
+        condition: service_healthy
+      audit-server:
+        condition: service_started
+      product-eligibility-server:
+        condition: service_started
+      kyc-server:
+        condition: service_started
+      suitability-server:
+        condition: service_started
+      disclosure-server:
+        condition: service_started
 
   audit-server:
     build: ./mcp-servers/audit-server
@@ -56,3 +80,4 @@ services:
 
 volumes:
   audit-data:
+  postgres-data:

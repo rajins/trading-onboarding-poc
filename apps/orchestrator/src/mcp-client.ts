@@ -51,6 +51,7 @@ export async function callTool(toolName: string, input: unknown): Promise<unknow
   const client = toolToClient.get(toolName);
   if (!client) throw new Error(`No MCP server handles tool: ${toolName}`);
   const result = await client.callTool({ name: toolName, arguments: input as Record<string, unknown> });
-  const text = result.content.find((c: { type: string }) => c.type === 'text') as { text: string } | undefined;
+  const content = result.content as { type: string; text?: string }[];
+  const text = content.find(c => c.type === 'text') as { text: string } | undefined;
   return text ? JSON.parse(text.text) : result;
 }
