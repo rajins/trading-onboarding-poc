@@ -1,8 +1,8 @@
 # UK Trading Account Onboarding POC
 
-An AI-powered onboarding platform for UK retail trading accounts. Claude acts as an intelligent orchestrator calling 5 specialised MCP servers — all compliance decisions are deterministic, auditable, and FCA-aware.
+An AI-powered onboarding platform for UK retail trading accounts. Claude acts as an intelligent orchestrator calling 6 specialised MCP servers — all compliance decisions are deterministic, auditable, and FCA-aware.
 
-**Stack:** Claude Sonnet 4.6 · MCP (Model Context Protocol) · Next.js 14 · Express · TypeScript · PostgreSQL · sql.js · Docker Compose
+**Stack:** Claude Sonnet 4.6 · MCP (Model Context Protocol) · Next.js 14 · Express · TypeScript · PostgreSQL · Docker Compose
 
 ---
 
@@ -16,51 +16,53 @@ An AI-powered onboarding platform for UK retail trading accounts. Claude acts as
 ┌─────────────────────▼───────────────────────────┐
 │  CLAUDE ORCHESTRATOR  ·  Agentic Loop            │
 │  Routes between MCP tools. Never decides.        │
-│  Parallel tool dispatch via pre-built tool→      │
-│  client Map (O(1) per call, zero fan-out)        │
-└──┬───────┬──────────┬──────────┬────────────────┘
-   │       │          │          │          │
-┌──▼──┐ ┌──▼──┐  ┌───▼──┐  ┌───▼──┐  ┌────▼──────┐  ┌────────┐
-│ PII │ │ KYC │  │SUIT  │  │ELIG  │  │DISCLOSURE │  │ AUDIT  │
-│ MCP │ │ MCP │  │MCP   │  │MCP   │  │MCP        │  │ MCP ★  │
-└─────┘ └──┬──┘  └───┬──┘  └────┬─┘  └────┬──────┘  └────┬───┘
-           └──────────┴──────────┴─────────┴──────────────┘
-                                 │
-                      ┌──────────▼──────────┐
-                      │  JSON RULES ENGINE  │
-                      │  rules/uk/*.json    │
-                      └─────────────────────┘
-
-┌───────────────────────────────────────────┐
-│  PostgreSQL  ·  sessions table (JSONB)    │
-│  Persists conversation history across     │
-│  orchestrator restarts                    │
-└───────────────────────────────────────────┘
+│  Parallel tool dispatch via Map<toolName,Client> │
+└──┬──────┬─────────┬─────────┬───────────────────┘
+   │      │         │         │         │         │
+┌──▼──┐ ┌─▼──┐ ┌───▼──┐ ┌───▼──┐ ┌────▼──────┐ ┌─▼────┐
+│ PII │ │KYC │ │SUIT  │ │ELIG  │ │DISCLOSURE │ │AUDIT │
+│ MCP │ │MCP │ │MCP   │ │MCP   │ │MCP        │ │MCP   │
+└──┬──┘ └─┬──┘ └───┬──┘ └───┬──┘ └────┬──────┘ └──┬───┘
+   │      └────────┴─────────┴─────────┘           │
+   │              JSON RULES ENGINE                 │
+   │           rules/uk/*.json                      │
+   │                                                │
+┌──▼────────────────────────────────────────────── ▼──┐
+│  PostgreSQL  ·  3 domain databases                  │
+│  onboarding_sessions  —  session messages (JSONB)   │
+│  onboarding_audit     —  immutable audit events     │
+│  onboarding_pii       —  AES-256-GCM encrypted PII  │
+└─────────────────────────────────────────────────────┘
 ```
 
 **Key principle:** Claude orchestrates but never makes compliance decisions. All PASS/FAIL outcomes come from deterministic JSON rules inside MCP servers.
 
 ### Design decisions
 
-- **O(1) tool dispatch** — at startup, each server's tools are registered in a `Map<toolName, Client>`. Every `callTool` is a direct lookup with no fan-out or try/catch probing across servers.
+- **O(1) tool dispatch** — at startup, each server's tools are registered in a `Map<toolName, Client>`. Every `callTool` is a direct lookup with no fan-out.
 - **Parallel tool execution** — when Claude returns multiple tool calls in a single response, they run concurrently via `Promise.all`.
+- **Parallel startup** — `initDb()` and `initMcpServers()` run in parallel at boot via `Promise.all`.
 - **Rules cached at module init** — KYC, suitability, and disclosure servers load and cache their JSON rules files on first access per product. No disk reads in the hot path.
-- **Audit debounced** — `persist()` (sql.js → disk) is debounced 500 ms so a burst of audit inserts produces one flush rather than blocking the event loop per row. A `process.on('exit')` guard ensures nothing is lost.
-- **Typed session messages** — `Session.messages` is typed as `Anthropic.MessageParam[]` throughout; no runtime casts in the agentic loop.
-- **Persistent sessions** — conversation history stored in PostgreSQL as `JSONB`. Sessions survive orchestrator restarts; the `sessions` table is created automatically on first start via `CREATE TABLE IF NOT EXISTS`.
+- **Domain-specific databases** — sessions, audit events, and PII each have their own PostgreSQL database. MCP servers receive their own `DATABASE_URL` and are fully isolated.
+- **Field-level encryption** — personal details are encrypted per field with AES-256-GCM (random 12-byte IV per field) before storage. The key is never logged or transmitted.
+- **Shared MCP server factory** — all 6 servers use `mcp-servers/shared/create-server.ts` (`createMcpServer`), eliminating repeated stdio wiring boilerplate.
+- **Typed session messages** — `Session.messages` is `Anthropic.MessageParam[]` throughout; no runtime casts in the agentic loop.
+- **`appendAndSave`** — every mutation to session messages immediately persists to PostgreSQL, preventing in-memory/DB drift.
 
 ---
 
 ## MCP Servers
 
-| Server | Transport | Tools | Data source |
-|--------|-----------|-------|-------------|
-| `personal-details-server` | stdio | `get_required_fields`, `save_personal_details`, `validate_personal_details`, `get_personal_details` | `data/personal-details/{customer_id}.json` (AES-256-GCM encrypted) |
-| `audit-server` | stdio | `write_audit_event`, `get_audit_trail`, `snapshot_decision` | append-only SQLite (sql.js) |
-| `product-eligibility-server` | stdio | `get_eligible_products`, `get_required_journey_steps` | `rules/uk/eligibility.json` |
-| `kyc-server` | stdio | `verify_identity`, `check_sanctions`, `assess_vulnerability` | `rules/uk/kyc.json` (cached) |
-| `suitability-server` | stdio | `get_appropriateness_questions`, `run_appropriateness_test`, `check_retest_period` | `rules/uk/suitability/{product}.json` (cached per product) |
-| `disclosure-server` | stdio | `get_required_disclosures`, `get_risk_warnings`, `get_consumer_duty_content` | `rules/uk/disclosures/{product}.json` (cached per product) |
+| Server | Tools | Data source |
+|--------|-------|-------------|
+| `personal-details-server` | `get_required_fields`, `save_personal_details`, `validate_personal_details`, `get_personal_details` | `onboarding_pii` PostgreSQL DB (AES-256-GCM encrypted JSONB) |
+| `audit-server` | `write_audit_event`, `get_audit_trail`, `snapshot_decision` | `onboarding_audit` PostgreSQL DB (append-only) |
+| `product-eligibility-server` | `get_eligible_products`, `get_required_journey_steps` | `rules/uk/eligibility.json` |
+| `kyc-server` | `verify_identity`, `check_sanctions`, `assess_vulnerability` | `rules/uk/kyc.json` (cached) |
+| `suitability-server` | `get_appropriateness_questions`, `run_appropriateness_test`, `check_retest_period` | `rules/uk/suitability/{product}.json` (cached per product) |
+| `disclosure-server` | `get_required_disclosures`, `get_risk_warnings`, `get_consumer_duty_content` | `rules/uk/disclosures/{product}.json` (cached per product) |
+
+All servers communicate over **stdio** and are spawned as subprocesses by the orchestrator at startup.
 
 ---
 
@@ -83,7 +85,7 @@ An AI-powered onboarding platform for UK retail trading accounts. Claude acts as
 - Node.js 20+
 - npm 9+
 - Docker (for PostgreSQL)
-- An Anthropic API key with credits ([console.anthropic.com](https://console.anthropic.com))
+- An Anthropic API key ([console.anthropic.com](https://console.anthropic.com))
 
 ### 1. Clone and install
 
@@ -97,17 +99,24 @@ npm install
 
 ```bash
 cp .env.example .env
-# Edit .env and set your ANTHROPIC_API_KEY
 ```
+
+Edit `.env` and fill in the required values:
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Database URLs (matches docker-compose defaults)
+SESSIONS_DATABASE_URL=postgresql://onboarding:onboarding@localhost:5432/onboarding_sessions
+AUDIT_DATABASE_URL=postgresql://onboarding:onboarding@localhost:5432/onboarding_audit
+PII_DATABASE_URL=postgresql://onboarding:onboarding@localhost:5432/onboarding_pii
+
+# 32-byte hex key for AES-256-GCM PII encryption
+# Generate with: openssl rand -hex 32
+PERSONAL_DETAILS_ENCRYPTION_KEY=<64 hex chars>
+
 ORCHESTRATOR_PORT=3001
 FRONTEND_PORT=3000
-AUDIT_DB_PATH=./data/audit.db
-DATABASE_URL=postgresql://onboarding:onboarding@localhost:5432/onboarding
-PERSONAL_DETAILS_ENCRYPTION_KEY=<64 hex chars — generate with: openssl rand -hex 32>
-PERSONAL_DETAILS_PATH=./data/personal-details
 ```
 
 ### 3. Start PostgreSQL
@@ -116,7 +125,12 @@ PERSONAL_DETAILS_PATH=./data/personal-details
 docker compose up postgres -d
 ```
 
-Wait for the healthcheck to pass (a few seconds), then the `sessions` table is created automatically when the orchestrator first connects.
+The `docker/init-db.sh` script runs automatically on first start and creates all 3 databases (`onboarding_sessions`, `onboarding_audit`, `onboarding_pii`). Tables are created by the application on first connection — no migrations required.
+
+Wait for the healthcheck to pass:
+```bash
+docker compose ps   # postgres should show "(healthy)"
+```
 
 ### 4. Run the orchestrator
 
@@ -125,49 +139,65 @@ cd apps/orchestrator
 npx tsx src/index.ts
 ```
 
-Wait for:
+Wait for all 6 MCP servers to connect:
 ```
+Orchestrator running on :3001
+[MCP] Connected: personal-details (4 tools)
 [MCP] Connected: audit (3 tools)
 [MCP] Connected: eligibility (2 tools)
-[MCP] Connected: personal-details (4 tools)
-...
-[MCP] All servers connected. Tools: write_audit_event, get_audit_trail, ...
-Orchestrator running on :3001
+[MCP] Connected: kyc (3 tools)
+[MCP] Connected: suitability (3 tools)
+[MCP] Connected: disclosure (3 tools)
+[MCP] All 6 servers connected.
 ```
 
 ### 5. Run the frontend
 
 ```bash
-# In a new terminal, from the project root
 cd apps/frontend
-../../node_modules/.bin/next dev
+npx next dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
+## Docker (full stack)
+
+To run everything in Docker:
+
+```bash
+cp .env.example .env
+# Set ANTHROPIC_API_KEY and PERSONAL_DETAILS_ENCRYPTION_KEY in .env
+
+docker compose up
+```
+
+Services start in dependency order (postgres healthcheck → orchestrator → frontend). Frontend available at [http://localhost:3000](http://localhost:3000).
+
+---
+
 ## Demo Scenarios
 
-### Scenario 1 — ISA (Happy Path, 4 steps)
+### Scenario 1 — ISA (Happy Path)
 > "I want to open an ISA"
 
-Personal Details collected → KYC → disclosure presented → account created. No appropriateness test.
+Personal details collected → KYC → disclosure presented → account created. No appropriateness test required.
 
-### Scenario 2 — CFD PASS (Full Journey, 6 steps)
-> "I want to open a CFD account" + answer questions with high scores
+### Scenario 2 — CFD (Pass)
+> "I want to open a CFD account" + answer questions correctly
 
-Personal Details (including income band + source of wealth) → KYC → 4-question appropriateness test (score ≥ 6) → FCA 74% loss warning → account created.
+Personal details (including income band + source of wealth) → KYC → 4-question appropriateness test (score ≥ 6) → FCA 74% loss warning → account created.
 
-### Scenario 3 — CFD FAIL (Blocked)
+### Scenario 3 — CFD (Fail)
 > "I want to open a CFD account" + answer questions with low scores
 
-Personal Details → KYC → appropriateness test FAIL (score < 6) → journey stopped → 30-day retest period enforced. Claude cannot override.
+Personal details → KYC → appropriateness test FAIL (score < 6) → journey blocked → 30-day retest period enforced. Claude cannot override.
 
 ### Scenario 4 — PEP Customer
 > Declare `is_pep: true` during personal details collection
 
-Journey continues (POC does not block at onboarding layer) but `PEP_FLAGGED` is written to the audit trail and Claude informs the customer their account is flagged for enhanced due diligence.
+Journey continues (POC does not block at onboarding layer), but `PEP_FLAGGED` is written to the audit trail and Claude informs the customer their account is flagged for enhanced due diligence.
 
 ---
 
@@ -181,47 +211,47 @@ trading-onboarding-poc/
 │   │       ├── app/
 │   │       │   ├── api/chat/   # Proxies to orchestrator :3001
 │   │       │   └── api/audit/  # Proxies audit trail requests
-│   │       ├── components/
-│   │       │   ├── ChatInterface.tsx
-│   │       │   └── AuditPanel.tsx
-│   │       └── lib/
-│   │           └── orchestrator.ts  # Shared ORCHESTRATOR_URL constant
+│   │       └── components/
+│   │           ├── ChatInterface.tsx
+│   │           └── AuditPanel.tsx
 │   └── orchestrator/           # Express + Claude agentic loop
 │       └── src/
-│           ├── index.ts        # Routes + agentic loop (parallel tool execution)
-│           ├── mcp-client.ts   # O(1) tool dispatch via Map<toolName, Client>
+│           ├── index.ts        # Routes + agentic loop
+│           ├── mcp-client.ts   # O(1) tool dispatch, spawns MCP subprocesses
 │           ├── prompt.ts       # System prompt with compliance guardrails
-│           ├── session.ts      # PostgreSQL-backed session store (JSONB messages)
-│           └── db.ts           # pg connection pool + initDb() (CREATE TABLE IF NOT EXISTS)
+│           ├── session.ts      # PostgreSQL session store (appendAndSave, rowToSession)
+│           └── db.ts           # pg pool + schema init for onboarding_sessions
 ├── mcp-servers/
-│   ├── tsconfig.base.json      # Shared compiler options for all MCP servers
-│   ├── personal-details-server/ # PII collection + AES-256-GCM field-level encryption
-│   ├── audit-server/           # Append-only SQLite audit log (debounced writes)
+│   ├── shared/
+│   │   └── create-server.ts    # Shared MCP server factory (createMcpServer)
+│   ├── tsconfig.base.json      # Shared compiler options
+│   ├── personal-details-server/ # PII collection + AES-256-GCM field encryption → onboarding_pii
+│   ├── audit-server/           # Append-only audit events → onboarding_audit
 │   ├── product-eligibility-server/
-│   ├── kyc-server/             # KYC rules loaded once at startup
-│   ├── suitability-server/     # Rules cached per product on first access
-│   └── disclosure-server/      # Disclosures cached per product on first access
+│   ├── kyc-server/
+│   ├── suitability-server/
+│   └── disclosure-server/
 ├── rules/
 │   └── uk/
-│       ├── eligibility.json    # Product eligibility + journey steps (PERSONAL_DETAILS first)
-│       ├── kyc.json            # KYC requirements and mock pass criteria
+│       ├── eligibility.json    # Product eligibility + journey steps
+│       ├── kyc.json            # KYC requirements and pass criteria
 │       ├── personal-details.json  # Field definitions, enums, conditional triggers
-│       ├── suitability/        # Appropriateness test questions + scoring
+│       ├── suitability/        # Appropriateness test questions + scoring per product
 │       │   ├── cfd.json
 │       │   ├── sipp.json
 │       │   ├── options.json
 │       │   ├── isa.json
 │       │   └── gia.json
-│       └── disclosures/        # FCA-mandated disclosure text (pre-approved)
+│       └── disclosures/        # FCA-mandated disclosure text
 │           ├── cfd.json        # Includes mandatory 74% loss warning
 │           ├── sipp.json
 │           ├── options.json
 │           ├── isa.json
 │           └── gia.json
-├── data/
-│   └── personal-details/       # AES-256-GCM encrypted customer PII (one JSON per customer)
+├── docker/
+│   └── init-db.sh              # Creates onboarding_audit and onboarding_pii databases
 ├── .env.example
-├── docker-compose.yml          # postgres:16-alpine + all services
+├── docker-compose.yml          # postgres:16-alpine + orchestrator + frontend
 └── package.json                # npm workspaces root (apps/*, mcp-servers/*)
 ```
 
@@ -242,10 +272,9 @@ trading-onboarding-poc/
 
 ### Session persistence
 
-Conversation history is stored in PostgreSQL (`sessions` table, `messages JSONB`). Sessions survive orchestrator restarts — a customer can close the browser and resume exactly where they left off. The table is created automatically on first start; no migration script needed.
+Conversation history is stored in PostgreSQL (`onboarding_sessions` database, `sessions` table). Sessions survive orchestrator restarts — a customer can resume exactly where they left off.
 
 ```sql
--- sessions table schema
 CREATE TABLE sessions (
   id           TEXT PRIMARY KEY,
   customer_id  TEXT,
@@ -258,7 +287,7 @@ CREATE TABLE sessions (
 
 ### Audit trail
 
-Every tool call writes an immutable event to the audit SQLite database. Writes are batched via a 500 ms debounce timer to avoid blocking the event loop; a `process.on('exit')` handler guarantees a final flush.
+Every tool call writes an immutable event to the `onboarding_audit` database. Events are queryable by `session_id` or `customer_id`.
 
 ```json
 {
@@ -269,58 +298,44 @@ Every tool call writes an immutable event to the audit SQLite database. Writes a
   "input_snapshot": { "product_code": "CFD", "answers": { "q1": "none", "q2": "less_1" } },
   "output_snapshot": { "score": 3, "pass_threshold": 6 },
   "rule_version": "1.0.0",
-  "created_at": "2026-06-20T07:00:00Z"
+  "created_at": "2026-06-21T07:00:00Z"
 }
 ```
 
-View the audit trail live in the browser sidebar, or via API:
+View the audit trail in the browser sidebar, or directly:
 ```bash
 curl http://localhost:3001/audit/{session_id}
 ```
+
+### PII encryption
+
+Personal details are encrypted field-by-field using AES-256-GCM before being written to the `onboarding_pii` database. Each field uses a fresh random 12-byte IV. The encryption key is read from `PERSONAL_DETAILS_ENCRYPTION_KEY` and never logged.
 
 ---
 
 ## API Reference
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/chat` | Send a message. Body: `{ session_id, message }`. Returns `{ reply, session_id }` or `{ error, session_id }` on failure. |
-| `GET` | `/audit/:session_id` | Fetch all audit events for a session. |
-| `GET` | `/sessions` | List all active in-memory sessions with message counts. |
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `POST` | `/chat` | `{ session_id, message }` | `{ reply, session_id }` |
+| `GET` | `/audit/:session_id` | — | Array of audit events |
+| `GET` | `/sessions` | — | `{ sessions: [{ id, product_code, created_at, message_count }] }` |
 
 ---
 
 ## Adding a New Region
 
 1. Create `rules/{region}/eligibility.json`, `kyc.json`, `suitability/*.json`, `disclosures/*.json`
-2. Update the orchestrator system prompt in `apps/orchestrator/src/prompt.ts` to reference the new region
-3. No MCP server code changes required — rules are path-configurable via `RULES_PATH` env var
+2. Set `RULES_PATH` env var to point to the new rules directory
+3. Update `apps/orchestrator/src/prompt.ts` to reference the new region
+
+No MCP server code changes required — all servers resolve rules from `RULES_PATH` at runtime.
 
 ---
 
-## Docker
+## Roadmap
 
-```bash
-# Copy and populate .env first
-cp .env.example .env
-# Set ANTHROPIC_API_KEY and PERSONAL_DETAILS_ENCRYPTION_KEY in .env
-
-docker compose up
-```
-
-Services start in dependency order. Postgres healthcheck must pass before the orchestrator starts. Frontend available at [http://localhost:3000](http://localhost:3000).
-
-**Postgres only (for local dev):**
-```bash
-docker compose up postgres -d
-```
-Then run the orchestrator and frontend directly with `npx tsx`.
-
----
-
-## Roadmap (Weeks 5–8)
-
-- [ ] Compliance dashboard — all sessions, decision history, rule version tracking
+- [ ] Compliance dashboard — sessions, decision history, rule version tracking
 - [ ] SIPP pension declaration step
 - [ ] Options full journey
 - [ ] Multi-region support (SG, IN)
