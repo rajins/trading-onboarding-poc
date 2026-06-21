@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "mcp-shared": "*",
     "pg": "^8.13.0",
     "zod": "^3.22.4"
   },
