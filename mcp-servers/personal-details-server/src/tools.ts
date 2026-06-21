@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { saveFields, loadFields, customerExists } from './store.js';
-import { validateFields, getRequiredFields } from './validator.js';
+import { saveFields, loadFields } from './store.js';
+import { validateFields, getRequiredFields, RULES_VERSION } from './validator.js';
 
 const AddressSchema = z.object({
   line1: z.string(),
@@ -33,14 +33,14 @@ export const personalDetailsTools = {
     }),
     handler: async (input: { customer_id: string; intended_products: string[] }) => {
       const { required, conditional } = getRequiredFields(input.intended_products);
-      const exists = await customerExists(input.customer_id);
-      const already_saved = exists ? Object.keys(await loadFields(input.customer_id)) : [];
+      const fields = await loadFields(input.customer_id);
+      const already_saved = Object.keys(fields);
       return {
         customer_id: input.customer_id,
         required_fields: required,
         conditional_fields: conditional,
         already_saved,
-        rules_version: '1.0.0',
+        rules_version: RULES_VERSION,
       };
     },
   },
@@ -52,10 +52,7 @@ export const personalDetailsTools = {
       fields: FieldsSchema,
     }),
     handler: async (input: { customer_id: string; fields: Record<string, unknown> }) => {
-      const nonNull: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(input.fields)) {
-        if (v !== undefined && v !== null) nonNull[k] = v;
-      }
+      const nonNull = Object.fromEntries(Object.entries(input.fields).filter(([, v]) => v != null));
       await saveFields(input.customer_id, nonNull);
 
       const flags: string[] = [];
@@ -85,7 +82,7 @@ export const personalDetailsTools = {
         customer_id: input.customer_id,
         valid: errors.length === 0,
         errors,
-        rules_version: '1.0.0',
+        rules_version: RULES_VERSION,
       };
     },
   },

@@ -4,6 +4,8 @@ import path from 'path';
 const RULES_BASE = process.env.RULES_PATH || path.resolve(process.cwd(), '../../rules');
 const RULES = JSON.parse(readFileSync(path.join(RULES_BASE, 'uk', 'personal-details.json'), 'utf-8'));
 
+export const RULES_VERSION: string = RULES.version as string;
+
 const NI_REGEX = /^[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z][0-9]{6}[A-D]$/;
 const POSTCODE_REGEX = /^[A-Z]{1,2}[0-9][0-9A-Z]?\s?[0-9][A-Z]{2}$/;
 const ISO3166_REGEX = /^[A-Z]{2}$/;

@@ -1,19 +1,19 @@
 import crypto from 'crypto';
 import pg from 'pg';
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new pg.Pool({ connectionString: process.env.PII_DATABASE_URL });
 
+let _key: Buffer | undefined;
 function getKey(): Buffer {
+  if (_key) return _key;
   const raw = process.env.PERSONAL_DETAILS_ENCRYPTION_KEY;
   if (!raw) {
     console.error('[personal-details] WARNING: PERSONAL_DETAILS_ENCRYPTION_KEY not set. Using insecure dev key.');
-    return Buffer.alloc(32, 'dev-key-do-not-use-in-production!!');
+    return (_key = Buffer.alloc(32, 'dev-key-do-not-use-in-production!!'));
   }
   if (raw.length !== 64) throw new Error('PERSONAL_DETAILS_ENCRYPTION_KEY must be 64 hex chars (32 bytes)');
-  return Buffer.from(raw, 'hex');
+  return (_key = Buffer.from(raw, 'hex'));
 }
-
-const KEY = getKey();
 
 interface EncryptedField {
   iv: string;
@@ -22,8 +22,9 @@ interface EncryptedField {
 }
 
 export function encryptField(value: unknown): EncryptedField {
+  const key = getKey();
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   const plaintext = JSON.stringify(value);
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const auth_tag = cipher.getAuthTag();
@@ -35,7 +36,8 @@ export function encryptField(value: unknown): EncryptedField {
 }
 
 export function decryptField(encrypted: EncryptedField): unknown {
-  const decipher = crypto.createDecipheriv('aes-256-gcm', KEY, Buffer.from(encrypted.iv, 'hex'));
+  const key = getKey();
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(encrypted.iv, 'hex'));
   decipher.setAuthTag(Buffer.from(encrypted.auth_tag, 'hex'));
   const decrypted = Buffer.concat([
     decipher.update(Buffer.from(encrypted.ciphertext, 'hex')),
@@ -84,10 +86,3 @@ export async function loadFields(customerId: string): Promise<Record<string, unk
   return result;
 }
 
-export async function customerExists(customerId: string): Promise<boolean> {
-  const { rows } = await pool.query(
-    'SELECT 1 FROM customer_personal_details WHERE customer_id = $1',
-    [customerId]
-  );
-  return rows.length > 0;
-}
