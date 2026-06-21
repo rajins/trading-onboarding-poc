@@ -9,20 +9,15 @@ export interface Session {
   created_at: string;
 }
 
-export async function getOrCreateSession(id: string): Promise<Session> {
-  const { rows } = await pool.query<{
-    id: string;
-    customer_id: string | null;
-    product_code: string | null;
-    messages: Anthropic.MessageParam[];
-    created_at: Date;
-  }>(
-    `INSERT INTO sessions (id) VALUES ($1)
-     ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
-     RETURNING id, customer_id, product_code, messages, created_at`,
-    [id]
-  );
-  const row = rows[0];
+type SessionRow = {
+  id: string;
+  customer_id: string | null;
+  product_code: string | null;
+  messages: Anthropic.MessageParam[];
+  created_at: Date;
+};
+
+function rowToSession(row: SessionRow): Session {
   return {
     id: row.id,
     customer_id: row.customer_id ?? undefined,
@@ -30,6 +25,18 @@ export async function getOrCreateSession(id: string): Promise<Session> {
     messages: row.messages,
     created_at: row.created_at.toISOString(),
   };
+}
+
+export async function getOrCreateSession(id: string): Promise<Session> {
+  await pool.query(
+    `INSERT INTO sessions (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`,
+    [id]
+  );
+  const { rows } = await pool.query<SessionRow>(
+    `SELECT id, customer_id, product_code, messages, created_at FROM sessions WHERE id = $1`,
+    [id]
+  );
+  return rowToSession(rows[0]);
 }
 
 export async function saveSession(session: Session): Promise<void> {
@@ -41,20 +48,14 @@ export async function saveSession(session: Session): Promise<void> {
   );
 }
 
-export async function getAllSessions(): Promise<Session[]> {
-  const { rows } = await pool.query<{
-    id: string;
-    customer_id: string | null;
-    product_code: string | null;
-    messages: Anthropic.MessageParam[];
-    created_at: Date;
-  }>(`SELECT id, customer_id, product_code, messages, created_at FROM sessions ORDER BY created_at DESC`);
+export async function appendAndSave(session: Session, ...messages: Anthropic.MessageParam[]): Promise<void> {
+  session.messages.push(...messages);
+  await saveSession(session);
+}
 
-  return rows.map(row => ({
-    id: row.id,
-    customer_id: row.customer_id ?? undefined,
-    product_code: row.product_code ?? undefined,
-    messages: row.messages,
-    created_at: row.created_at.toISOString(),
-  }));
+export async function getAllSessions(): Promise<Session[]> {
+  const { rows } = await pool.query<SessionRow>(
+    `SELECT id, customer_id, product_code, messages, created_at FROM sessions ORDER BY created_at DESC`
+  );
+  return rows.map(rowToSession);
 }

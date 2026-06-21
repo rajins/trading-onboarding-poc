@@ -9,17 +9,11 @@ const RULES_PATH = process.env.RULES_PATH || path.resolve(process.cwd(), '../../
 const toolToClient = new Map<string, Client>();
 const allTools: Anthropic.Tool[] = [];
 
-const SERVER_DB: Record<string, string | undefined> = {
-  audit:            process.env.AUDIT_DATABASE_URL,
-  'personal-details': process.env.PII_DATABASE_URL,
-};
-
 async function connectServer(name: string, serverPath: string) {
-  const dbUrl = SERVER_DB[name];
   const transport = new StdioClientTransport({
     command: 'npx',
     args: ['tsx', path.join(serverPath, 'src', 'index.ts')],
-    env: { ...process.env, RULES_PATH, ...(dbUrl ? { DATABASE_URL: dbUrl } : {}) },
+    env: { ...process.env, RULES_PATH },
   });
   const client = new Client({ name: 'orchestrator', version: '1.0.0' });
   await client.connect(transport);
@@ -56,7 +50,7 @@ export async function callTool(toolName: string, input: unknown): Promise<unknow
   const client = toolToClient.get(toolName);
   if (!client) throw new Error(`No MCP server handles tool: ${toolName}`);
   const result = await client.callTool({ name: toolName, arguments: input as Record<string, unknown> });
-  const content = result.content as { type: string; text?: string }[];
-  const text = content.find(c => c.type === 'text') as { text: string } | undefined;
-  return text ? JSON.parse(text.text) : result;
+  const content = (result.content ?? []) as { type: string; text?: string }[];
+  const textBlock = content.find(c => c.type === 'text');
+  return textBlock ? JSON.parse((textBlock as { text: string }).text) : result;
 }
