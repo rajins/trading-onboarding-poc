@@ -33,11 +33,12 @@ async function connectServer(name: string, serverPath: string) {
 
 export async function initMcpServers() {
   await Promise.all([
-    connectServer('audit', path.join(MCP_SERVERS_BASE, 'audit-server')),
-    connectServer('eligibility', path.join(MCP_SERVERS_BASE, 'product-eligibility-server')),
-    connectServer('kyc', path.join(MCP_SERVERS_BASE, 'kyc-server')),
-    connectServer('suitability', path.join(MCP_SERVERS_BASE, 'suitability-server')),
-    connectServer('disclosure', path.join(MCP_SERVERS_BASE, 'disclosure-server')),
+    connectServer('audit',            path.join(MCP_SERVERS_BASE, 'audit-server')),
+    connectServer('eligibility',      path.join(MCP_SERVERS_BASE, 'product-eligibility-server')),
+    connectServer('personal-details', path.join(MCP_SERVERS_BASE, 'personal-details-server')),
+    connectServer('kyc',              path.join(MCP_SERVERS_BASE, 'kyc-server')),
+    connectServer('suitability',      path.join(MCP_SERVERS_BASE, 'suitability-server')),
+    connectServer('disclosure',       path.join(MCP_SERVERS_BASE, 'disclosure-server')),
   ]);
   console.log(`[MCP] All servers connected. Tools: ${allTools.map(t => t.name).join(', ')}`);
 }
