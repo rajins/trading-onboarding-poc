@@ -9,11 +9,17 @@ const RULES_PATH = process.env.RULES_PATH || path.resolve(process.cwd(), '../../
 const toolToClient = new Map<string, Client>();
 const allTools: Anthropic.Tool[] = [];
 
+const SERVER_DB: Record<string, string | undefined> = {
+  audit:            process.env.AUDIT_DATABASE_URL,
+  'personal-details': process.env.PII_DATABASE_URL,
+};
+
 async function connectServer(name: string, serverPath: string) {
+  const dbUrl = SERVER_DB[name];
   const transport = new StdioClientTransport({
     command: 'npx',
     args: ['tsx', path.join(serverPath, 'src', 'index.ts')],
-    env: { ...process.env, RULES_PATH },
+    env: { ...process.env, RULES_PATH, ...(dbUrl ? { DATABASE_URL: dbUrl } : {}) },
   });
   const client = new Client({ name: 'orchestrator', version: '1.0.0' });
   await client.connect(transport);
